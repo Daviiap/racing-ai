@@ -155,7 +155,18 @@ class PlayerCar(AbstractCar):
 
     def __init__(self, max_vel, rotation_vel):
         super().__init__(max_vel, rotation_vel)
-        self.sensors = [SensorBullet(self, 25, 12, (0, 0, 255)), SensorBullet(self, 10, 12, (0, 0, 255)), SensorBullet(self, 0, 12, (0, 255, 0)), SensorBullet(self, -10, 12, (0, 0, 255)), SensorBullet(self, -25, 12, (0, 0, 255))]
+        self.sensors = [
+            SensorBullet(self, 170, 20, (0, 0, 255)),
+            SensorBullet(self, 135, 20, (0, 0, 255)),
+            SensorBullet(self, 90, 12, (0, 0, 255)),
+            SensorBullet(self, 45, 12, (0, 0, 255)),
+            SensorBullet(self, 10, 12, (0, 0, 255)),
+            SensorBullet(self, -10, 12, (0, 0, 255)),
+            SensorBullet(self, -45, 12, (0, 0, 255)),
+            SensorBullet(self, -90, 12, (0, 0, 255)),
+            SensorBullet(self, -135, 20, (0, 0, 255)),
+            SensorBullet(self, -170, 20, (0, 0, 255)),
+            ]
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
@@ -197,7 +208,6 @@ class ComputerCar(AbstractCar):
 
     def draw(self, win):
         super().draw(win)
-        # self.draw_points(win)
 
     def calculate_angle(self):
         target_x, target_y = self.path[self.current_point]
@@ -275,15 +285,6 @@ def handle_collision(player_car):
     if player_car.collide(TRACK_BORDER_MASK) != None:
         return True
     
-    # player_finish_poi_collide = player_car.collide(
-    #     FINISH_MASK, *FINISH_POSITION)
-    
-    # if player_finish_poi_collide != None:
-    #     if player_finish_poi_collide[1] == 0:
-    #         player_car.bounce()
-    #     else:
-    #         player_car.reset()
-
 def main(genomes, config):
     global generation
     generation += 1
@@ -318,7 +319,6 @@ def main(genomes, config):
                 break
 
         for i, car in enumerate(cars):         
-            
             car.sensorControl()
             inputs = car.get_distance_array()
             inputs.append(car.vel)
@@ -332,18 +332,24 @@ def main(genomes, config):
             isCollide = handle_collision(car)
 
             if isCollide:
+                ge_list[i].fitness -= 1
                 cars.pop(i)
                 nets.pop(i)
                 ge_list.pop(i)
             else:
                 if old_x == car.x and old_y == car.y:
+                    ge_list[i].fitness -= 1
                     cars.pop(i)
                     nets.pop(i)
                     ge_list.pop(i)
                 else:
-                    ge_list[i].fitness += car.vel/10 + 0.1
-
-    
+                    if car.vel < 0:
+                        ge_list[i].fitness -= 1
+                        cars.pop(i)
+                        nets.pop(i)
+                        ge_list.pop(i)
+                    else:
+                        ge_list[i].fitness += car.vel/10
 
 def run(path_config):
 	config = neat.config.Config(neat.DefaultGenome,
@@ -355,7 +361,7 @@ def run(path_config):
 	population = neat.Population(config)
 	population.add_reporter(neat.StdOutReporter(True))
 	population.add_reporter(neat.StatisticsReporter())
-	winner = population.run(main, 50)
+	population.run(main, 50)
 
 if __name__ == '__main__': 
 	path = os.path.dirname(__file__)
