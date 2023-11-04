@@ -7,6 +7,7 @@ import os
 from utils import scale_image, blit_rotate_center, blit_text_center, contains
 pygame.font.init()
 
+generation = 0
 GRASS = scale_image(pygame.image.load("imgs/grass.jpg"), 2.5)
 TRACK = scale_image(pygame.image.load("imgs/track.png"), 0.9)
 
@@ -236,58 +237,56 @@ class ComputerCar(AbstractCar):
         super().move()
 
 
-def draw(win, images, player_car, game_info):
+def draw(win, images, cars):
+    
     for img, pos in images:
         win.blit(img, pos)
 
-    vel_text = MAIN_FONT.render(
-        f"Vel: {round(player_car.vel, 1)}px/s", 1, (255, 255, 255))
-    win.blit(vel_text, (10, HEIGHT - vel_text.get_height() - 10))
+    for img, pos in images:
+        win.blit(img, pos)
 
-    player_car.draw(win)
-
-    for bullet in player_car.sensors:
-        bullet.draw(win)
+    for car in cars:
+        car.draw(win)
+        for bullet in car.sensors:
+            bullet.draw(win)
 
     pygame.display.update()
 
 
-def move_player(player_car):
-    keys = pygame.key.get_pressed()
-    moved = False
-
-    if keys[pygame.K_a]:
+def move_player(player_car, outputs):
+    if outputs[0] > 0.5:
         player_car.rotate(left=True)
-    if keys[pygame.K_d]:
+    
+    if outputs[1] > 0.5:
         player_car.rotate(right=True)
-    if keys[pygame.K_w]:
-        moved = True
+    
+    if outputs[2] > 0.5:
+        player_car.move_backward()      
+
+    if outputs[0] > 0.5:
         player_car.move_forward()
-    if keys[pygame.K_s]:
-        moved = True
-        player_car.move_backward()
-
-    if not moved:
-        player_car.reduce_speed()
-
-
-def handle_collision(player_car, game_info):
-    if player_car.collide(TRACK_BORDER_MASK) != None:
-        player_car.bounce()
+    
+def handle_collision(player_car):
 
     for bullet in player_car.sensors:
         if bullet.collide() != None:
             bullet.draw_line(WIN, player_car)
 
-    player_finish_poi_collide = player_car.collide(
-        FINISH_MASK, *FINISH_POSITION)
-    if player_finish_poi_collide != None:
-        if player_finish_poi_collide[1] == 0:
-            player_car.bounce()
-        else:
-            player_car.reset()
+    if player_car.collide(TRACK_BORDER_MASK) != None:
+        return True
+    
+    # player_finish_poi_collide = player_car.collide(
+    #     FINISH_MASK, *FINISH_POSITION)
+    
+    # if player_finish_poi_collide != None:
+    #     if player_finish_poi_collide[1] == 0:
+    #         player_car.bounce()
+    #     else:
+    #         player_car.reset()
 
 def main(genomes, config):
+    global generation
+    generation += 1
 
     clock = pygame.time.Clock()
     images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
@@ -307,39 +306,35 @@ def main(genomes, config):
 
         cars.append(PlayerCar(2.5, 4))
 
+    score = 1
     run = True
     while run:
         clock.tick(FPS)
 
-        draw(WIN, images, player_car, game_info)
-
-        while not game_info.started:
-            pygame.display.update()
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    break
-
-                if event.type == pygame.KEYDOWN:
-                    game_info.start()
+        draw(WIN, images, cars, game_info)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 break
 
-        move_player(player_car)
+        for i, car in enumerate(cars):         
+            
+            car.sensorControl()
+            inputs = car.get_distance_array()
+            inputs.append(car.vel)
 
-        handle_collision(player_car, game_info)
-        player_car.sensorControl()
+            output = nets[i].activate(inputs)
 
-        print(player_car.get_distance_array())
+            move_player(car, output)
 
-        if game_info.game_finished():
-            blit_text_center(WIN, MAIN_FONT, "You won the game!")
-            pygame.time.wait(5000)
-            game_info.reset()
-            player_car.reset()
+            isCollide = handle_collision(car, game_info)
+
+            if isCollide:
+                cars.pop(i)
+                nets.pop(i)
+                ge_list.pop(i)
+    
 
 def run(path_config):
 	config = neat.config.Config(neat.DefaultGenome,
