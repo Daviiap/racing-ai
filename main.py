@@ -1,7 +1,7 @@
 import pygame
 import time
 import math
-from utils import scale_image, blit_rotate_center, blit_text_center
+from utils import scale_image, blit_rotate_center, blit_text_center, contains
 pygame.font.init()
 
 GRASS = scale_image(pygame.image.load("imgs/grass.jpg"), 2.5)
@@ -14,8 +14,10 @@ FINISH = pygame.image.load("imgs/finish.png")
 FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POSITION = (130, 250)
 
-RED_CAR = scale_image(pygame.image.load("imgs/red-car.png"), 0.55)
-GREEN_CAR = scale_image(pygame.image.load("imgs/green-car.png"), 0.55)
+RED_CAR = scale_image(pygame.image.load("imgs/red-car.png"), 0.40)
+GREEN_CAR = scale_image(pygame.image.load("imgs/green-car.png"), 0.40)
+
+CAR_WIDTH, CAR_HEIGHT = RED_CAR.get_width(), RED_CAR.get_height()
 
 WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -105,9 +107,66 @@ class AbstractCar:
         self.vel = 0
 
 
+class SensorBullet:
+    def __init__(self, car, base_angle, vel, color):
+        self.x = car.x + CAR_WIDTH/2
+        self.y = car.y + CAR_HEIGHT/2
+        self.angle = car.angle
+        self.base_angle = base_angle
+        self.vel = vel
+        self.color = color
+        self.img = pygame.Surface((4, 4))
+        self.fired = False
+        self.hit = False
+        self.last_poi = None
+
+    def draw(self, win):
+        pygame.draw.circle(win, self.color, (self.x, self.y), 2)
+
+    def fire(self, car):
+        self.angle = car.angle + self.base_angle
+        self.x = car.x + CAR_WIDTH/2
+        self.y = car.y + CAR_HEIGHT/2
+        self.fired = True
+        self.hit = False
+
+    def move(self):
+        if(self.fired):
+            radians = math.radians(self.angle)
+            vertical = math.cos(radians) * self.vel
+            horizontal = math.sin(radians) * self.vel
+
+            self.y -= vertical
+            self.x -= horizontal
+
+    def collide(self, x=0, y=0):
+        bullet_mask = pygame.mask.from_surface(self.img)
+        offset = (int(self.x - x), int(self.y - y))
+        poi = TRACK_BORDER_MASK.overlap(bullet_mask, offset)
+        if poi:
+            self.fired = False
+            self.hit = True
+            self.last_poi = poi
+        return poi
+
+    def draw_line(self, win, car):
+        if self.hit:
+            pygame.draw.line(win, self.color, (car.x + CAR_WIDTH/2, car.y + CAR_HEIGHT/2), (self.x, self.y), 1)
+            pygame.display.update()
+
+    def get_distance_from_poi(self, car):
+        if self.last_poi is None:
+            return -1
+        return math.sqrt((car.x - self.last_poi[0])**2 + (car.y - self.last_poi[1])**2)
+
+
 class PlayerCar(AbstractCar):
     IMG = RED_CAR
     START_POS = (180, 200)
+
+    def __init__(self, max_vel, rotation_vel):
+        super().__init__(max_vel, rotation_vel)
+        self.sensors = [SensorBullet(self, 25, 12, (0, 0, 255)), SensorBullet(self, 10, 12, (0, 0, 255)), SensorBullet(self, 0, 12, (0, 255, 0)), SensorBullet(self, -10, 12, (0, 0, 255)), SensorBullet(self, -25, 12, (0, 0, 255))]
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
@@ -116,6 +175,22 @@ class PlayerCar(AbstractCar):
     def bounce(self):
         self.vel = -self.vel
         self.move()
+
+    def fireSensors(self): 
+        for bullet in self.sensors:
+            bullet.fire(self)
+    
+    def sensorControl(self):
+        for bullet in self.sensors:
+            if not bullet.fired:
+                bullet.fire(self)
+
+        for bullet in self.sensors:
+            bullet.move()
+    
+    def get_distance_array(self):
+        return [bullet.get_distance_from_poi(self) for bullet in self.sensors]
+
 
 class ComputerCar(AbstractCar):
     IMG = GREEN_CAR
@@ -196,6 +271,10 @@ def draw(win, images, player_car, computer_car, game_info):
 
     player_car.draw(win)
     computer_car.draw(win)
+
+    for bullet in player_car.sensors:
+        bullet.draw(win)
+
     pygame.display.update()
 
 
@@ -222,6 +301,10 @@ def handle_collision(player_car, computer_car, game_info):
     if player_car.collide(TRACK_BORDER_MASK) != None:
         player_car.bounce()
 
+    for bullet in player_car.sensors:
+        if bullet.collide() != None:
+            bullet.draw_line(WIN, player_car)
+
     computer_finish_poi_collide = computer_car.collide(
         FINISH_MASK, *FINISH_POSITION)
     if computer_finish_poi_collide != None:
@@ -247,26 +330,39 @@ run = True
 clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
           (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
-player_car = PlayerCar(4, 4)
+player_car = PlayerCar(2.5, 4)
 computer_car = ComputerCar(2, 4, PATH)
 game_info = GameInfo()
-
-game_info.start_level()
 
 while run:
     clock.tick(FPS)
 
     draw(WIN, images, player_car, computer_car, game_info)
 
+    while not game_info.started:
+        blit_text_center(
+            WIN, MAIN_FONT, f"Press any key to start level {game_info.level}!")
+        pygame.display.update()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                break
+
+            if event.type == pygame.KEYDOWN:
+                game_info.start_level()
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
-            pygame.quit()
+            run = False
             break
 
     move_player(player_car)
     computer_car.move()
 
     handle_collision(player_car, computer_car, game_info)
+    player_car.sensorControl()
+
+    print(player_car.get_distance_array())
 
     if game_info.game_finished():
         blit_text_center(WIN, MAIN_FONT, "You won the game!")
