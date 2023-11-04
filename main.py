@@ -306,12 +306,11 @@ def main(genomes, config):
 
         cars.append(PlayerCar(2.5, 4))
 
-    score = 1
     run = True
-    while run:
+    while len(cars) > 0 and run:
         clock.tick(FPS)
 
-        draw(WIN, images, cars, game_info)
+        draw(WIN, images, cars)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -326,14 +325,24 @@ def main(genomes, config):
 
             output = nets[i].activate(inputs)
 
+            old_x, old_y = car.x, car.y
+
             move_player(car, output)
 
-            isCollide = handle_collision(car, game_info)
+            isCollide = handle_collision(car)
 
             if isCollide:
                 cars.pop(i)
                 nets.pop(i)
                 ge_list.pop(i)
+            else:
+                if old_x == car.x and old_y == car.y:
+                    cars.pop(i)
+                    nets.pop(i)
+                    ge_list.pop(i)
+                else:
+                    ge_list[i].fitness += car.vel/10 + 0.1
+
     
 
 def run(path_config):
