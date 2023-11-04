@@ -1,7 +1,7 @@
 import pygame
 import time
 import math
-from utils import scale_image, blit_rotate_center, blit_text_center, contains
+from utils import scale_image, blit_rotate_center, blit_text_center
 pygame.font.init()
 
 GRASS = scale_image(pygame.image.load("imgs/grass.jpg"), 2.5)
