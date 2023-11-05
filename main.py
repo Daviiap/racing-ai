@@ -56,6 +56,7 @@ class AbstractCar:
         self.vel = 0
         self.rotation_vel = rotation_vel
         self.angle = 0
+        self.distance = 0
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
 
@@ -83,6 +84,7 @@ class AbstractCar:
 
         self.y -= vertical
         self.x -= horizontal
+        self.distance += self.vel
 
     def collide(self, mask, x=0, y=0):
         car_mask = pygame.mask.from_surface(self.img)
@@ -156,16 +158,16 @@ class PlayerCar(AbstractCar):
     def __init__(self, max_vel, rotation_vel):
         super().__init__(max_vel, rotation_vel)
         self.sensors = [
-            SensorBullet(self, 170, 20, (0, 0, 255)),
-            SensorBullet(self, 135, 20, (0, 0, 255)),
+            #SensorBullet(self, 170, 20, (0, 0, 255)),
+            #SensorBullet(self, 135, 20, (0, 0, 255)),
             SensorBullet(self, 90, 12, (0, 0, 255)),
             SensorBullet(self, 45, 12, (0, 0, 255)),
             SensorBullet(self, 10, 12, (0, 0, 255)),
             SensorBullet(self, -10, 12, (0, 0, 255)),
             SensorBullet(self, -45, 12, (0, 0, 255)),
             SensorBullet(self, -90, 12, (0, 0, 255)),
-            SensorBullet(self, -135, 20, (0, 0, 255)),
-            SensorBullet(self, -170, 20, (0, 0, 255)),
+            #SensorBullet(self, -135, 20, (0, 0, 255)),
+            #SensorBullet(self, -170, 20, (0, 0, 255)),
             ]
 
     def reduce_speed(self):
@@ -320,8 +322,10 @@ def main(genomes, config):
             output = nets[i].activate(inputs)
 
             old_x, old_y = car.x, car.y
+            old_left, old_right = car.get_distance_array()[0], car.get_distance_array()[-1]
             move_player(car, output)
 
+            new_left, new_right = car.get_distance_array()[0], car.get_distance_array()[-1]
             isCollide = handle_collision(car)
 
             if isCollide:
@@ -342,7 +346,7 @@ def main(genomes, config):
                         nets.pop(i)
                         ge_list.pop(i)
                     else:
-                        ge_list[i].fitness += car.vel/10
+                        ge_list[i].fitness += car.vel/50 + car.distance/30 - (abs(new_left - old_left) + abs(new_right - old_right))/30
 
 def run(path_config):
 	config = neat.config.Config(neat.DefaultGenome,
