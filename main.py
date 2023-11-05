@@ -172,12 +172,22 @@ class PlayerCar(AbstractCar):
         super().__init__(max_vel, rotation_vel)
         self.sensors = [
             SensorBullet(self, 90, 12, (0, 0, 255)),
+            SensorBullet(self, 80, 12, (0, 0, 255)),
+            SensorBullet(self, 70, 12, (0, 0, 255)),
             SensorBullet(self, 60, 12, (0, 0, 255)),
+            SensorBullet(self, 50, 12, (0, 0, 255)),
+            SensorBullet(self, 40, 12, (0, 0, 255)),
             SensorBullet(self, 30, 12, (0, 0, 255)),
+            SensorBullet(self, 20, 12, (0, 0, 255)),
             SensorBullet(self, 10, 12, (0, 0, 255)),
             SensorBullet(self, -10, 12, (0, 0, 255)),
-            SensorBullet(self, -60, 12, (0, 0, 255)),
+            SensorBullet(self, -20, 12, (0, 0, 255)),
             SensorBullet(self, -30, 12, (0, 0, 255)),
+            SensorBullet(self, -40, 12, (0, 0, 255)),
+            SensorBullet(self, -50, 12, (0, 0, 255)),
+            SensorBullet(self, -60, 12, (0, 0, 255)),
+            SensorBullet(self, -70, 12, (0, 0, 255)),
+            SensorBullet(self, -80, 12, (0, 0, 255)),
             SensorBullet(self, -90, 12, (0, 0, 255)),
             ]
 
