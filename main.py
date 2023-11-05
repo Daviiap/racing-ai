@@ -1,10 +1,9 @@
 import pygame
-import time
 import math
 import neat
 import os
 
-from utils import scale_image, blit_rotate_center, blit_text_center, contains
+from utils import scale_image, blit_rotate_center
 pygame.font.init()
 
 generation = 0
@@ -30,9 +29,28 @@ pygame.display.set_caption("Racing Game!")
 MAIN_FONT = pygame.font.SysFont("comicsans", 44)
 
 FPS = 60
-PATH = [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
-        (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
-
+PATH = [(175, 119),
+        (110, 70),
+        (56, 133),
+        (70, 481),
+        (318, 731),
+        (404, 680),
+        (418, 521),
+        (507, 475),
+        (600, 551),
+        (613, 715),
+        (736, 713),
+        (734, 399),
+        (611, 357),
+        (409, 343),
+        (433, 257),
+        (697, 258),
+        (738, 123),
+        (581, 71),
+        (303, 78),
+        (275, 377),
+        (176, 388),
+        (178, 260)]
 
 class GameInfo:
     LEVELS = 10
@@ -95,7 +113,6 @@ class AbstractCar:
         self.angle = 0
         self.vel = 0
 
-
 class SensorBullet:
     def __init__(self, car, base_angle, vel, color):
         self.x = car.x + CAR_WIDTH/2
@@ -139,14 +156,13 @@ class SensorBullet:
         return poi
 
     def draw_line(self, win, car):
-        if self.hit:
-            pygame.draw.line(win, self.color, (car.x + CAR_WIDTH/2, car.y + CAR_HEIGHT/2), (self.x, self.y), 1)
+        pygame.draw.line(win, self.color, (car.x + CAR_WIDTH/2, car.y + CAR_HEIGHT/2), (self.x, self.y), 1)
+
 
     def get_distance_from_poi(self, car):
         if self.last_poi is None:
             return -1
         return math.sqrt((car.x - self.last_poi[0])**2 + (car.y - self.last_poi[1])**2)
-
 
 class PlayerCar(AbstractCar):
     IMG = RED_CAR
@@ -155,16 +171,14 @@ class PlayerCar(AbstractCar):
     def __init__(self, max_vel, rotation_vel):
         super().__init__(max_vel, rotation_vel)
         self.sensors = [
-            SensorBullet(self, 170, 20, (0, 0, 255)),
-            SensorBullet(self, 135, 20, (0, 0, 255)),
             SensorBullet(self, 90, 12, (0, 0, 255)),
-            SensorBullet(self, 45, 12, (0, 0, 255)),
+            SensorBullet(self, 60, 12, (0, 0, 255)),
+            SensorBullet(self, 30, 12, (0, 0, 255)),
             SensorBullet(self, 10, 12, (0, 0, 255)),
             SensorBullet(self, -10, 12, (0, 0, 255)),
-            SensorBullet(self, -45, 12, (0, 0, 255)),
+            SensorBullet(self, -60, 12, (0, 0, 255)),
+            SensorBullet(self, -30, 12, (0, 0, 255)),
             SensorBullet(self, -90, 12, (0, 0, 255)),
-            SensorBullet(self, -135, 20, (0, 0, 255)),
-            SensorBullet(self, -170, 20, (0, 0, 255)),
             ]
 
     def reduce_speed(self):
@@ -189,7 +203,6 @@ class PlayerCar(AbstractCar):
     
     def get_distance_array(self):
         return [bullet.get_distance_from_poi(self) for bullet in self.sensors]
-
 
 class ComputerCar(AbstractCar):
     IMG = GREEN_CAR
@@ -245,20 +258,16 @@ class ComputerCar(AbstractCar):
         self.update_path_point()
         super().move()
 
-
-def draw(win, images, cars):
-    
+def draw(win, images, cars, laser):
     for img, pos in images:
         win.blit(img, pos)
 
-    for img, pos in images:
-        win.blit(img, pos)
+    laser.draw(win)
 
     for car in cars:
         car.draw(win)
 
     pygame.display.update()
-
 
 def move_player(player_car, outputs):
     if outputs[0] > 0.5:
@@ -267,7 +276,11 @@ def move_player(player_car, outputs):
     if outputs[1] > 0.5:
         player_car.rotate(right=True)
 
-    player_car.move_forward()
+    if outputs[2] > 0.5:
+        player_car.move_forward()
+
+    if outputs[3] > 0.5:
+        player_car.move_backward()
     
 def handle_collision(player_car):
 
@@ -289,6 +302,7 @@ def main(genomes, config):
     nets = []
     cars = []
     ge_list = []
+    laser = ComputerCar(1.5, 4, PATH)
 
     for _, genome in genomes:
         net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -303,7 +317,9 @@ def main(genomes, config):
     while len(cars) > 0 and run:
         clock.tick(FPS)
 
-        draw(WIN, images, cars)
+        draw(WIN, images, cars, laser)
+
+        laser.move()
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
