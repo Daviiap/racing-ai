@@ -6,6 +6,7 @@ import os
 from utils import scale_image, blit_rotate_center
 pygame.font.init()
 
+neat_stats = neat.StatisticsReporter()
 generation = 0
 GRASS = scale_image(pygame.image.load("imgs/grass.jpg"), 2.5)
 TRACK = scale_image(pygame.image.load("imgs/track.png"), 0.9)
@@ -304,9 +305,9 @@ def handle_collision(player_car):
         return True
 
 def main(genomes, config):
-    global generation
+    global generation, neat_stats
     generation += 1
-
+    
     clock = pygame.time.Clock()
     images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
             (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
@@ -343,6 +344,11 @@ def main(genomes, config):
 
             move_player(car, output)
 
+            player_finish_poi_collide = car.collide(FINISH_MASK, *FINISH_POSITION)
+
+            if player_finish_poi_collide != None:
+                ge_list[i].fitness += 1000
+
             isCollide = handle_collision(car)
 
             if isCollide:
@@ -353,18 +359,20 @@ def main(genomes, config):
                 ge_list[i].fitness += 0.1
 
 def run(path_config):
-	config = neat.config.Config(neat.DefaultGenome,
+    global neat_stats
+    config = neat.config.Config(neat.DefaultGenome,
 								neat.DefaultReproduction,
 								neat.DefaultSpeciesSet,
 								neat.DefaultStagnation,
 								path_config)
-
-	population = neat.Population(config)
-	population.add_reporter(neat.StdOutReporter(True))
-	population.add_reporter(neat.StatisticsReporter())
-	population.run(main, 50)
+    population = neat.Population(config)
+    population.add_reporter(neat.StdOutReporter(True))
+    population.add_reporter(neat_stats)
+    population.run(main, 50)
 
 if __name__ == '__main__': 
-	path = os.path.dirname(__file__)
-	path_config = os.path.join(path, 'config.txt')
-	run(path_config)
+    path = os.path.dirname(__file__)
+    path_config = os.path.join(path, 'config.txt')
+    run(path_config)
+    print(neat_stats.get_fitness_mean())
+
