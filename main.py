@@ -269,12 +269,8 @@ def move_player(player_car, outputs):
     
     if outputs[1] > 0.5:
         player_car.rotate(right=True)
-    
-    if outputs[2] > 0.5:
-        player_car.move_backward()      
 
-    if outputs[0] > 0.5:
-        player_car.move_forward()
+    player_car.move_forward()
     
 def handle_collision(player_car):
 
@@ -292,7 +288,6 @@ def main(genomes, config):
     clock = pygame.time.Clock()
     images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
             (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
-    game_info = GameInfo()
     
     nets = []
     cars = []
@@ -305,7 +300,7 @@ def main(genomes, config):
         genome.fitness = 0
         ge_list.append(genome)
 
-        cars.append(PlayerCar(2.5, 4))
+        cars.append(PlayerCar(8, 5))
 
     run = True
     while len(cars) > 0 and run:
@@ -319,14 +314,12 @@ def main(genomes, config):
                 break
 
         for i, car in enumerate(cars):         
-            car.sensorControl()
             inputs = car.get_distance_array()
             inputs.append(car.vel)
 
             output = nets[i].activate(inputs)
 
             old_x, old_y = car.x, car.y
-
             move_player(car, output)
 
             isCollide = handle_collision(car)
