@@ -258,14 +258,20 @@ class ComputerCar(AbstractCar):
         self.update_path_point()
         super().move()
 
-def draw(win, images, cars, laser):
+STAT_FONT = pygame.font.SysFont("comicsans", 50)
+
+def draw(win, images, cars, generation):
     for img, pos in images:
         win.blit(img, pos)
 
-    laser.draw(win)
-
     for car in cars:
         car.draw(win)
+
+    text = STAT_FONT.render("Gen: "+str(generation), 1, (0,0,0))
+    win.blit(text, (win.get_width()-text.get_width() - 10, 50))
+
+    text2 = STAT_FONT.render("Cars Alive: "+str(len(cars)), 1, (0,0,0))
+    win.blit(text2, (win.get_width()-text2.get_width() - 10, 100))
 
     pygame.display.update()
 
@@ -276,11 +282,7 @@ def move_player(player_car, outputs):
     if outputs[1] > 0.5:
         player_car.rotate(right=True)
 
-    if outputs[2] > 0.5:
-        player_car.move_forward()
-
-    if outputs[3] > 0.5:
-        player_car.move_backward()
+    player_car.move_forward()
     
 def handle_collision(player_car):
 
@@ -290,7 +292,7 @@ def handle_collision(player_car):
 
     if player_car.collide(TRACK_BORDER_MASK) != None:
         return True
-    
+
 def main(genomes, config):
     global generation
     generation += 1
@@ -302,7 +304,6 @@ def main(genomes, config):
     nets = []
     cars = []
     ge_list = []
-    laser = ComputerCar(1.5, 4, PATH)
 
     for _, genome in genomes:
         net = neat.nn.FeedForwardNetwork.create(genome, config)
@@ -311,15 +312,13 @@ def main(genomes, config):
         genome.fitness = 0
         ge_list.append(genome)
 
-        cars.append(PlayerCar(8, 5))
+        cars.append(PlayerCar(2, 3))
 
     run = True
     while len(cars) > 0 and run:
         clock.tick(FPS)
 
-        draw(WIN, images, cars, laser)
-
-        laser.move()
+        draw(WIN, images, cars, generation)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -329,34 +328,19 @@ def main(genomes, config):
         for i, car in enumerate(cars):   
             car.sensorControl()
             inputs = car.get_distance_array()
-            inputs.append(car.vel)
 
             output = nets[i].activate(inputs)
 
-            old_x, old_y = car.x, car.y
             move_player(car, output)
 
             isCollide = handle_collision(car)
 
             if isCollide:
-                ge_list[i].fitness -= 1
                 cars.pop(i)
                 nets.pop(i)
                 ge_list.pop(i)
             else:
-                if old_x == car.x and old_y == car.y:
-                    ge_list[i].fitness -= 1
-                    cars.pop(i)
-                    nets.pop(i)
-                    ge_list.pop(i)
-                else:
-                    if car.vel < 0:
-                        ge_list[i].fitness -= 1
-                        cars.pop(i)
-                        nets.pop(i)
-                        ge_list.pop(i)
-                    else:
-                        ge_list[i].fitness += car.vel/10
+                ge_list[i].fitness += 0.1
 
 def run(path_config):
 	config = neat.config.Config(neat.DefaultGenome,
