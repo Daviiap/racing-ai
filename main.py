@@ -141,7 +141,6 @@ class SensorBullet:
     def draw_line(self, win, car):
         if self.hit:
             pygame.draw.line(win, self.color, (car.x + CAR_WIDTH/2, car.y + CAR_HEIGHT/2), (self.x, self.y), 1)
-            pygame.display.update()
 
     def get_distance_from_poi(self, car):
         if self.last_poi is None:
@@ -257,8 +256,6 @@ def draw(win, images, cars):
 
     for car in cars:
         car.draw(win)
-        for bullet in car.sensors:
-            bullet.draw(win)
 
     pygame.display.update()
 
@@ -313,7 +310,8 @@ def main(genomes, config):
                 run = False
                 break
 
-        for i, car in enumerate(cars):         
+        for i, car in enumerate(cars):   
+            car.sensorControl()
             inputs = car.get_distance_array()
             inputs.append(car.vel)
 
