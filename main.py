@@ -1,9 +1,13 @@
 import pygame
-import time
 import math
-from utils import scale_image, blit_rotate_center, blit_text_center
+import neat
+import os
+
+from utils import scale_image, blit_rotate_center
 pygame.font.init()
 
+neat_stats = neat.StatisticsReporter()
+generation = 0
 GRASS = scale_image(pygame.image.load("imgs/grass.jpg"), 2.5)
 TRACK = scale_image(pygame.image.load("imgs/track.png"), 0.9)
 
@@ -14,8 +18,10 @@ FINISH = pygame.image.load("imgs/finish.png")
 FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POSITION = (130, 250)
 
-RED_CAR = scale_image(pygame.image.load("imgs/red-car.png"), 0.55)
-GREEN_CAR = scale_image(pygame.image.load("imgs/green-car.png"), 0.55)
+RED_CAR = scale_image(pygame.image.load("imgs/red-car.png"), 0.40)
+GREEN_CAR = scale_image(pygame.image.load("imgs/green-car.png"), 0.40)
+
+CAR_WIDTH, CAR_HEIGHT = RED_CAR.get_width(), RED_CAR.get_height()
 
 WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -24,39 +30,43 @@ pygame.display.set_caption("Racing Game!")
 MAIN_FONT = pygame.font.SysFont("comicsans", 44)
 
 FPS = 60
-PATH = [(175, 119), (110, 70), (56, 133), (70, 481), (318, 731), (404, 680), (418, 521), (507, 475), (600, 551), (613, 715), (736, 713),
-        (734, 399), (611, 357), (409, 343), (433, 257), (697, 258), (738, 123), (581, 71), (303, 78), (275, 377), (176, 388), (178, 260)]
-
+PATH = [(175, 119),
+        (110, 70),
+        (56, 133),
+        (70, 481),
+        (318, 731),
+        (404, 680),
+        (418, 521),
+        (507, 475),
+        (600, 551),
+        (613, 715),
+        (736, 713),
+        (734, 399),
+        (611, 357),
+        (409, 343),
+        (433, 257),
+        (697, 258),
+        (738, 123),
+        (581, 71),
+        (303, 78),
+        (275, 377),
+        (176, 388),
+        (178, 260)]
 
 class GameInfo:
     LEVELS = 10
 
-    def __init__(self, level=1):
-        self.level = level
-        self.started = False
-        self.level_start_time = 0
-
-    def next_level(self):
-        self.level += 1
+    def __init__(self):
         self.started = False
 
     def reset(self):
-        self.level = 1
-        self.started = False
-        self.level_start_time = 0
+       self.started = False
 
     def game_finished(self):
         return self.level > self.LEVELS
 
-    def start_level(self):
+    def start(self):
         self.started = True
-        self.level_start_time = time.time()
-
-    def get_level_time(self):
-        if not self.started:
-            return 0
-        return round(time.time() - self.level_start_time)
-
 
 class AbstractCar:
     def __init__(self, max_vel, rotation_vel):
@@ -104,10 +114,83 @@ class AbstractCar:
         self.angle = 0
         self.vel = 0
 
+class SensorBullet:
+    def __init__(self, car, base_angle, vel, color):
+        self.x = car.x + CAR_WIDTH/2
+        self.y = car.y + CAR_HEIGHT/2
+        self.angle = car.angle
+        self.base_angle = base_angle
+        self.vel = vel
+        self.color = color
+        self.img = pygame.Surface((4, 4))
+        self.fired = False
+        self.hit = False
+        self.last_poi = None
+
+    def draw(self, win):
+        pygame.draw.circle(win, self.color, (self.x, self.y), 2)
+
+    def fire(self, car):
+        self.angle = car.angle + self.base_angle
+        self.x = car.x + CAR_WIDTH/2
+        self.y = car.y + CAR_HEIGHT/2
+        self.fired = True
+        self.hit = False
+
+    def move(self):
+        if(self.fired):
+            radians = math.radians(self.angle)
+            vertical = math.cos(radians) * self.vel
+            horizontal = math.sin(radians) * self.vel
+
+            self.y -= vertical
+            self.x -= horizontal
+
+    def collide(self, x=0, y=0):
+        bullet_mask = pygame.mask.from_surface(self.img)
+        offset = (int(self.x - x), int(self.y - y))
+        poi = TRACK_BORDER_MASK.overlap(bullet_mask, offset)
+        if poi:
+            self.fired = False
+            self.hit = True
+            self.last_poi = poi
+        return poi
+
+    def draw_line(self, win, car):
+        pygame.draw.line(win, self.color, (car.x + CAR_WIDTH/2, car.y + CAR_HEIGHT/2), (self.x, self.y), 1)
+
+
+    def get_distance_from_poi(self, car):
+        if self.last_poi is None:
+            return -1
+        return math.sqrt((car.x - self.last_poi[0])**2 + (car.y - self.last_poi[1])**2)
 
 class PlayerCar(AbstractCar):
     IMG = RED_CAR
     START_POS = (180, 200)
+
+    def __init__(self, max_vel, rotation_vel):
+        super().__init__(max_vel, rotation_vel)
+        self.sensors = [
+            SensorBullet(self, 90, 12, (0, 0, 255)),
+            SensorBullet(self, 80, 12, (0, 0, 255)),
+            SensorBullet(self, 70, 12, (0, 0, 255)),
+            SensorBullet(self, 60, 12, (0, 0, 255)),
+            SensorBullet(self, 50, 12, (0, 0, 255)),
+            SensorBullet(self, 40, 12, (0, 0, 255)),
+            SensorBullet(self, 30, 12, (0, 0, 255)),
+            SensorBullet(self, 20, 12, (0, 0, 255)),
+            SensorBullet(self, 10, 12, (0, 0, 255)),
+            SensorBullet(self, -10, 12, (0, 0, 255)),
+            SensorBullet(self, -20, 12, (0, 0, 255)),
+            SensorBullet(self, -30, 12, (0, 0, 255)),
+            SensorBullet(self, -40, 12, (0, 0, 255)),
+            SensorBullet(self, -50, 12, (0, 0, 255)),
+            SensorBullet(self, -60, 12, (0, 0, 255)),
+            SensorBullet(self, -70, 12, (0, 0, 255)),
+            SensorBullet(self, -80, 12, (0, 0, 255)),
+            SensorBullet(self, -90, 12, (0, 0, 255)),
+            ]
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
@@ -116,6 +199,21 @@ class PlayerCar(AbstractCar):
     def bounce(self):
         self.vel = -self.vel
         self.move()
+
+    def fireSensors(self): 
+        for bullet in self.sensors:
+            bullet.fire(self)
+    
+    def sensorControl(self):
+        for bullet in self.sensors:
+            if not bullet.fired:
+                bullet.fire(self)
+
+        for bullet in self.sensors:
+            bullet.move()
+    
+    def get_distance_array(self):
+        return [bullet.get_distance_from_poi(self) for bullet in self.sensors]
 
 class ComputerCar(AbstractCar):
     IMG = GREEN_CAR
@@ -133,7 +231,6 @@ class ComputerCar(AbstractCar):
 
     def draw(self, win):
         super().draw(win)
-        # self.draw_points(win)
 
     def calculate_angle(self):
         target_x, target_y = self.path[self.current_point]
@@ -172,108 +269,110 @@ class ComputerCar(AbstractCar):
         self.update_path_point()
         super().move()
 
-    def next_level(self, level):
-        self.reset()
-        self.vel = self.max_vel + (level - 1) * 0.2
-        self.current_point = 0
+STAT_FONT = pygame.font.SysFont("comicsans", 50)
 
-
-def draw(win, images, player_car, computer_car, game_info):
+def draw(win, images, cars, generation):
     for img, pos in images:
         win.blit(img, pos)
 
-    level_text = MAIN_FONT.render(
-        f"Level {game_info.level}", 1, (255, 255, 255))
-    win.blit(level_text, (10, HEIGHT - level_text.get_height() - 70))
+    for car in cars:
+        car.draw(win)
 
-    time_text = MAIN_FONT.render(
-        f"Time: {game_info.get_level_time()}s", 1, (255, 255, 255))
-    win.blit(time_text, (10, HEIGHT - time_text.get_height() - 40))
+    text = STAT_FONT.render("Gen: "+str(generation), 1, (0,0,0))
+    win.blit(text, (win.get_width()-text.get_width() - 10, 50))
 
-    vel_text = MAIN_FONT.render(
-        f"Vel: {round(player_car.vel, 1)}px/s", 1, (255, 255, 255))
-    win.blit(vel_text, (10, HEIGHT - vel_text.get_height() - 10))
+    text2 = STAT_FONT.render("Cars Alive: "+str(len(cars)), 1, (0,0,0))
+    win.blit(text2, (win.get_width()-text2.get_width() - 10, 100))
 
-    player_car.draw(win)
-    computer_car.draw(win)
     pygame.display.update()
 
-
-def move_player(player_car):
-    keys = pygame.key.get_pressed()
-    moved = False
-
-    if keys[pygame.K_a]:
+def move_player(player_car, outputs):
+    if outputs[0] > 0.5:
         player_car.rotate(left=True)
-    if keys[pygame.K_d]:
+    
+    if outputs[1] > 0.5:
         player_car.rotate(right=True)
-    if keys[pygame.K_w]:
-        moved = True
-        player_car.move_forward()
-    if keys[pygame.K_s]:
-        moved = True
-        player_car.move_backward()
 
-    if not moved:
-        player_car.reduce_speed()
+    player_car.move_forward()
+    
+def handle_collision(player_car):
 
+    for bullet in player_car.sensors:
+        if bullet.collide() != None:
+            bullet.draw_line(WIN, player_car)
 
-def handle_collision(player_car, computer_car, game_info):
     if player_car.collide(TRACK_BORDER_MASK) != None:
-        player_car.bounce()
+        return True
 
-    computer_finish_poi_collide = computer_car.collide(
-        FINISH_MASK, *FINISH_POSITION)
-    if computer_finish_poi_collide != None:
-        blit_text_center(WIN, MAIN_FONT, "You lost!")
-        pygame.display.update()
-        pygame.time.wait(5000)
-        game_info.reset()
-        player_car.reset()
-        computer_car.reset()
+def main(genomes, config):
+    global generation, neat_stats
+    generation += 1
+    
+    clock = pygame.time.Clock()
+    images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
+            (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
+    
+    nets = []
+    cars = []
+    ge_list = []
 
-    player_finish_poi_collide = player_car.collide(
-        FINISH_MASK, *FINISH_POSITION)
-    if player_finish_poi_collide != None:
-        if player_finish_poi_collide[1] == 0:
-            player_car.bounce()
-        else:
-            game_info.next_level()
-            player_car.reset()
-            computer_car.next_level(game_info.level)
+    for _, genome in genomes:
+        net = neat.nn.FeedForwardNetwork.create(genome, config)
+        nets.append(net)
 
+        genome.fitness = 0
+        ge_list.append(genome)
 
-run = True
-clock = pygame.time.Clock()
-images = [(GRASS, (0, 0)), (TRACK, (0, 0)),
-          (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
-player_car = PlayerCar(4, 4)
-computer_car = ComputerCar(2, 4, PATH)
-game_info = GameInfo()
+        cars.append(PlayerCar(2, 3))
 
-game_info.start_level()
+    run = True
+    while len(cars) > 0 and run:
+        clock.tick(FPS)
 
-while run:
-    clock.tick(FPS)
+        draw(WIN, images, cars, generation)
 
-    draw(WIN, images, player_car, computer_car, game_info)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                break
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            break
+        for i, car in enumerate(cars):   
+            car.sensorControl()
+            inputs = car.get_distance_array()
 
-    move_player(player_car)
-    computer_car.move()
+            output = nets[i].activate(inputs)
 
-    handle_collision(player_car, computer_car, game_info)
+            move_player(car, output)
 
-    if game_info.game_finished():
-        blit_text_center(WIN, MAIN_FONT, "You won the game!")
-        pygame.time.wait(5000)
-        game_info.reset()
-        player_car.reset()
-        computer_car.reset()
+            player_finish_poi_collide = car.collide(FINISH_MASK, *FINISH_POSITION)
 
+            if player_finish_poi_collide != None:
+                ge_list[i].fitness += 1000
 
-pygame.quit()
+            isCollide = handle_collision(car)
+
+            if isCollide:
+                cars.pop(i)
+                nets.pop(i)
+                ge_list.pop(i)
+            else:
+                ge_list[i].fitness += 0.1
+
+def run(path_config):
+    global neat_stats
+    config = neat.config.Config(neat.DefaultGenome,
+								neat.DefaultReproduction,
+								neat.DefaultSpeciesSet,
+								neat.DefaultStagnation,
+								path_config)
+    population = neat.Population(config)
+    population.add_reporter(neat.StdOutReporter(True))
+    population.add_reporter(neat_stats)
+    population.run(main, 50)
+
+if __name__ == '__main__': 
+    path = os.path.dirname(__file__)
+    path_config = os.path.join(path, 'config.txt')
+    run(path_config)
+    print(neat_stats.get_fitness_mean())
+
